@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Gram Maker</title>
+    
+    <!-- 1. 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 2. 引入 Babel (讓瀏覽器看得懂 JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 3. 引入 Tailwind CSS (免安裝版) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 4. 引入 html-to-image 下載功能 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+
+    <!-- 5. 引入 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Oswald:wght@500;700&family=Playfair+Display:wght@400;700&family=Shippori+Mincho:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- 自定義捲軸樣式 -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+        .writing-vertical-lr { writing-mode: vertical-lr; }
+    </style>
+</head>
+<body class="bg-stone-50 h-screen overflow-hidden">
+    <div id="root" class="h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        // --- 簡易版圖示組件 (因為 CDN 引入 Lucide 較複雜，直接用 SVG 取代) ---
+        const Icons = {
+            ImageIcon: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>,
+            Download: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            Grid: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></svg>,
+            Edit3: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>,
+            Palette: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.01 17.461 2 12 2z"/></svg>,
+            Upload: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            MoveVertical: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 18 12 22 16 18"/><polyline points="8 6 12 2 16 6"/><line x1="12" x2="12" y1="2" y2="22"/></svg>,
+            Sun: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>,
+            Type: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>
+        };
+
+        // --- Hook: 偵測容器大小以自動縮放 ---
+        const useContainerSize = () => {
+          const [size, setSize] = useState({ width: 0, height: 0 });
+          const ref = useRef(null);
+
+          useEffect(() => {
+            const observeTarget = ref.current;
+            if (!observeTarget) return;
+
+            const resizeObserver = new ResizeObserver((entries) => {
+              if (entries[0]) {
+                const { width, height } = entries[0].contentRect;
+                setSize({ width, height });
+              }
+            });
+
+            resizeObserver.observe(observeTarget);
+            return () => resizeObserver.disconnect();
+          }, []);
+
+          return [ref, size];
+        };
+
+        // Font Definitions
+        const fontOptions = [
+          { id: 'Montserrat', name: '現代幾何', family: "'Montserrat', sans-serif" },
+          { id: 'Playfair Display', name: '優雅襯線', family: "'Playfair Display', serif" },
+          { id: 'Shippori Mincho', name: '日系明朝', family: "'Shippori Mincho', serif" },
+          { id: 'Oswald', name: '強烈粗體', family: "'Oswald', sans-serif" },
+          { id: 'Space Mono', name: '打字機風', family: "'Space Mono', monospace" },
+        ];
+
+        // --- 主程式 App ---
+        const App = () => {
+          const [image, setImage] = useState(null);
+          const [template, setTemplate] = useState('cover-overlay');
+          const [activeTab, setActiveTab] = useState('content'); // layout, content, style
+          
+          const [texts, setTexts] = useState({
+            mainTitle: 'YAKUSHIMA',
+            subTitle: '世界遺産“屋久島”2泊3日旅',
+            description: 'その日の風や天候で気球が飛ぶか飛ばないかが決まるので、綺麗な景色に出会えるのは奇跡。',
+            timeInfo: 'DAY1\n12:55 福岡発\n14:10 屋久島着',
+            tag: 'From SAGA',
+            location: '住所：鹿児島県熊毛郡屋久島町'
+          });
+          
+          const [styles, setStyles] = useState({
+            textColor: 'white',
+            mainSize: 64,
+            subSize: 16,
+            verticalPos: 0,
+            enableShadow: false,
+            fontFamily: fontOptions[0].family 
+          });
+          
+          const previewRef = useRef(null);
+          const fileInputRef = useRef(null);
+          const [containerRef, containerSize] = useContainerSize();
+
+          // Reset settings when template changes
+          useEffect(() => {
+            if (template === 'inner-story') {
+               setStyles(prev => ({ ...prev, textColor: 'black', mainSize: 24, subSize: 14 }));
+            } else if (template === 'cover-sidebar') {
+               setStyles(prev => ({ ...prev, textColor: 'black', mainSize: 48, subSize: 16 }));
+            } else {
+               setStyles(prev => ({ ...prev, textColor: 'white', mainSize: 64, subSize: 16 }));
+            }
+          }, [template]);
+
+          const handleImageUpload = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (e) => setImage(e.target.result);
+              reader.readAsDataURL(file);
+            }
+          };
+
+          const handleDownload = async () => {
+            if (!previewRef.current || !window.htmlToImage) {
+              alert("下載功能準備中，請稍後再試。");
+              return;
+            }
+            try {
+              const dataUrl = await window.htmlToImage.toPng(previewRef.current, {
+                quality: 0.95,
+                pixelRatio: 3, 
+                style: {
+                   transform: 'scale(1)',
+                   transformOrigin: 'top left'
+                },
+                width: 400, 
+                height: 500
+              });
+              const link = document.createElement('a');
+              link.download = `travel-gram-${Date.now()}.png`;
+              link.href = dataUrl;
+              link.click();
+            } catch (err) {
+              console.error('Download failed', err);
+              alert("下載失敗，建議直接截圖保存！");
+            }
+          };
+
+          const getTextShadowStyle = () => {
+            return styles.enableShadow ? { textShadow: '2px 2px 10px rgba(0,0,0,0.9)' } : {};
+          };
+
+          const getFontStyle = () => ({ fontFamily: styles.fontFamily });
+
+          // --- Renderers ---
+          const renderCoverOverlay = () => (
+            <div className="relative w-full h-full bg-gray-100 overflow-hidden flex flex-col justify-center items-center" style={getFontStyle()}>
+              {image ? (
+                <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">請上傳圖片</div>
+              )}
+              <div 
+                className={`relative z-10 text-center px-6 w-full ${styles.textColor === 'white' ? 'text-white' : 'text-stone-900'}`}
+                style={{ transform: `translateY(${styles.verticalPos}px)` }}
+              >
+                <p 
+                  className="mb-2 tracking-widest font-medium opacity-90 drop-shadow-md"
+                  style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}
+                >
+                  {texts.subTitle}
+                </p>
+                <h1 
+                  className="font-bold tracking-widest uppercase drop-shadow-lg leading-tight"
+                  style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}
+                >
+                  {texts.mainTitle}
+                </h1>
+              </div>
+            </div>
+          );
+
+          const renderCoverSidebar = () => (
+            <div className="relative w-full h-full bg-white flex overflow-hidden" style={getFontStyle()}>
+               <div className="w-[18%] h-full bg-white flex flex-col items-center py-8 border-r border-gray-100 z-10 relative shadow-sm">
+                  <div 
+                    className="h-full flex items-center justify-center transform rotate-180" 
+                    style={{ writingMode: 'vertical-lr', transform: `rotate(180deg) translateY(${-styles.verticalPos}px)` }}
+                  >
+                     <h1 
+                        className="font-bold tracking-wider text-stone-900 uppercase whitespace-nowrap"
+                        style={{ fontSize: `${styles.mainSize * 0.6}px` }}
+                     >
+                       {texts.mainTitle}
+                     </h1>
+                  </div>
+               </div>
+               <div className="flex-1 relative h-full">
+                {image ? (
+                  <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 bg-stone-200 flex items-center justify-center text-stone-500">請上傳圖片</div>
+                )}
+                <div className="absolute bottom-12 right-6 text-right">
+                   <p 
+                     className="text-white font-medium drop-shadow-md opacity-90"
+                     style={{ fontSize: '18px', ...getTextShadowStyle() }}
+                   >
+                     {texts.tag}
+                   </p>
+                </div>
+               </div>
+            </div>
+          );
+
+          const renderInnerSchedule = () => (
+            <div className="relative w-full h-full bg-gray-100 overflow-hidden" style={getFontStyle()}>
+              {image ? (
+                <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">請上傳圖片</div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/40 pointer-events-none"></div>
+              <div className="absolute inset-0 flex flex-col justify-between p-6 md:p-10 z-10 pointer-events-none">
+                <div style={{ transform: `translateY(${styles.verticalPos}px)` }}>
+                    <h1 
+                      className="font-bold text-white tracking-wide uppercase drop-shadow-lg mb-2"
+                      style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}
+                    >
+                      {texts.mainTitle}
+                    </h1>
+                    <p 
+                      className="text-white font-medium drop-shadow-md"
+                      style={{ fontSize: `${styles.subSize * 1.2}px`, ...getTextShadowStyle() }}
+                    >
+                      {texts.subTitle}
+                    </p>
+                    <p 
+                      className="text-white/80 mt-2 max-w-xs leading-relaxed drop-shadow-sm"
+                      style={{ fontSize: `${Math.max(12, styles.subSize * 0.8)}px`, ...getTextShadowStyle() }}
+                    >
+                      {texts.location}
+                    </p>
+                </div>
+                <div>
+                  <div 
+                    className="text-white whitespace-pre-line leading-relaxed font-mono drop-shadow-md"
+                    style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}
+                  >
+                    {texts.timeInfo}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+
+          const renderInnerStory = () => (
+            <div className="relative w-full h-full bg-white flex flex-col overflow-hidden" style={getFontStyle()}>
+              <div className="h-[60%] w-full relative bg-stone-200">
+                {image ? (
+                    <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-stone-500">請上傳圖片</div>
+                  )}
+              </div>
+              <div className="h-[40%] w-full bg-white p-8 flex flex-col justify-center items-center text-center">
+                <div style={{ transform: `translateY(${styles.verticalPos}px)` }}>
+                  <h2 
+                    className={`font-bold text-stone-900 mb-6 tracking-widest relative inline-block pb-3`}
+                    style={{ fontSize: `${styles.mainSize}px` }}
+                  >
+                    {texts.subTitle}
+                    <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 bg-stone-400"></span>
+                  </h2>
+                  <p 
+                    className="text-stone-600 leading-7 tracking-wide max-w-md"
+                    style={{ fontSize: `${styles.subSize}px` }}
+                  >
+                    {texts.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+
+          const templates = [
+            { id: 'cover-overlay', name: '封面：大標題', render: renderCoverOverlay },
+            { id: 'cover-sidebar', name: '封面：側邊欄', render: renderCoverSidebar },
+            { id: 'inner-schedule', name: '內頁：行程', render: renderInnerSchedule },
+            { id: 'inner-story', name: '內頁：故事', render: renderInnerStory },
+          ];
+
+          // Auto-scaling logic
+          const BASE_WIDTH = 400;
+          const BASE_HEIGHT = 500;
+          const PADDING = 20;
+          
+          const scale = containerSize.width ? Math.min(
+            (containerSize.width - PADDING * 2) / BASE_WIDTH,
+            (containerSize.height - PADDING * 2) / BASE_HEIGHT
+          ) : 1;
+
+          return (
+            <div className="h-screen bg-stone-50 text-stone-800 font-sans selection:bg-stone-200 flex flex-col overflow-hidden">
+              
+              {/* Header */}
+              <header className="bg-white border-b border-stone-200 flex-none h-14 z-50 shadow-sm">
+                <div className="max-w-full mx-auto px-4 h-full flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-stone-900 text-white p-1 rounded">
+                      <Icons.ImageIcon size={18} />
+                    </div>
+                    <span className="font-bold text-base tracking-tight">Travel Gram</span>
+                  </div>
+                  <button 
+                    onClick={handleDownload}
+                    className="flex items-center gap-2 bg-stone-900 hover:bg-stone-700 active:scale-95 text-white px-4 py-1.5 rounded-full text-xs font-medium transition-all shadow-md"
+                  >
+                    <Icons.Download size={14} />
+                    下載
+                  </button>
+                </div>
+              </header>
+
+              <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+                
+                {/* Right Preview Panel */}
+                <div className="relative flex-1 bg-stone-100 lg:order-2 flex flex-col items-center justify-center overflow-hidden min-h-[40vh] lg:min-h-0 z-0">
+                   <div ref={containerRef} className="w-full h-full flex items-center justify-center relative">
+                     <div 
+                        className="shadow-2xl bg-white transition-transform duration-100 ease-out origin-center"
+                        style={{ 
+                          width: BASE_WIDTH, 
+                          height: BASE_HEIGHT,
+                          transform: `scale(${scale})`
+                        }}
+                     >
+                        <div ref={previewRef} className="w-full h-full overflow-hidden">
+                          {templates.find(t => t.id === template)?.render()}
+                        </div>
+                     </div>
+                   </div>
+                   <div className="absolute bottom-4 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] text-stone-400 font-medium shadow-sm pointer-events-none">
+                      預覽縮放: {Math.round(scale * 100)}%
+                   </div>
+                </div>
+                
+                {/* Left Control Panel */}
+                <div className="flex-none h-[55vh] lg:h-auto lg:w-[380px] bg-white border-t lg:border-t-0 lg:border-r border-stone-200 flex flex-col order-1 z-10 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] lg:shadow-none">
+                   
+                   {/* Tab Header */}
+                   <div className="flex border-b border-stone-100 bg-stone-50/50 flex-none">
+                      <button 
+                        onClick={() => setActiveTab('layout')}
+                        className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 transition-colors relative
+                          ${activeTab === 'layout' ? 'text-stone-900 bg-white' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`}
+                      >
+                        <Icons.Grid size={16} /> 版型
+                        {activeTab === 'layout' && <div className="absolute top-0 left-0 w-full h-0.5 bg-stone-900"></div>}
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab('content')}
+                        className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 transition-colors relative
+                          ${activeTab === 'content' ? 'text-stone-900 bg-white' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`}
+                      >
+                        <Icons.Edit3 size={16} /> 內容
+                        {activeTab === 'content' && <div className="absolute top-0 left-0 w-full h-0.5 bg-stone-900"></div>}
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab('style')}
+                        className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 transition-colors relative
+                          ${activeTab === 'style' ? 'text-stone-900 bg-white' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`}
+                      >
+                        <Icons.Palette size={16} /> 外觀
+                        {activeTab === 'style' && <div className="absolute top-0 left-0 w-full h-0.5 bg-stone-900"></div>}
+                      </button>
+                   </div>
+
+                   {/* Tab Content */}
+                   <div className="p-5 overflow-y-auto custom-scrollbar flex-1 bg-white">
+                      
+                      {/* LAYOUT TAB */}
+                      {activeTab === 'layout' && (
+                        <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-300">
+                          {templates.map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => setTemplate(t.id)}
+                              className={`p-3 rounded-xl border text-xs font-medium transition-all text-left flex flex-col gap-2 relative overflow-hidden group
+                                ${template === t.id 
+                                  ? 'border-stone-900 bg-stone-900 text-white shadow-md ring-2 ring-stone-900 ring-offset-2' 
+                                  : 'border-stone-200 hover:border-stone-400 text-stone-600 bg-stone-50 hover:bg-white'}`}
+                            >
+                              <span className="relative z-10">{t.name}</span>
+                              <div className={`w-full h-12 rounded opacity-50 border border-current mt-1
+                                 ${template === t.id ? 'bg-white/20' : 'bg-stone-200 group-hover:bg-stone-100'}`}></div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* CONTENT TAB */}
+                      {activeTab === 'content' && (
+                        <div className="space-y-5 animate-in fade-in duration-300">
+                          <div>
+                            <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">背景照片</label>
+                            <button 
+                              onClick={() => fileInputRef.current?.click()}
+                              className="w-full border-2 border-dashed border-stone-300 rounded-xl h-20 flex flex-col items-center justify-center gap-1 text-stone-500 hover:border-stone-900 hover:text-stone-900 hover:bg-stone-50 transition-all group"
+                            >
+                              <div className="flex items-center gap-2">
+                                 <div className="p-1.5 bg-stone-100 rounded-full group-hover:bg-stone-200 transition-colors"><Icons.Upload size={14} /></div>
+                                 <span className="text-xs font-medium">{image ? '更換照片' : '點擊上傳'}</span>
+                              </div>
+                            </button>
+                            <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+                          </div>
+
+                          <hr className="border-stone-100" />
+
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">主標題</label>
+                              <input 
+                                type="text" 
+                                value={texts.mainTitle}
+                                onChange={(e) => setTexts({...texts, mainTitle: e.target.value})}
+                                className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">副標題</label>
+                              <input 
+                                type="text" 
+                                value={texts.subTitle}
+                                onChange={(e) => setTexts({...texts, subTitle: e.target.value})}
+                                className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm"
+                              />
+                            </div>
+
+                            {template === 'inner-schedule' && (
+                              <div className="space-y-4 animate-in slide-in-from-bottom-2 fade-in">
+                                <div>
+                                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">地點/補充</label>
+                                  <input 
+                                    type="text" 
+                                    value={texts.location}
+                                    onChange={(e) => setTexts({...texts, location: e.target.value})}
+                                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">行程時間表</label>
+                                  <textarea 
+                                    rows={4}
+                                    value={texts.timeInfo}
+                                    onChange={(e) => setTexts({...texts, timeInfo: e.target.value})}
+                                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-xs font-mono leading-relaxed"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {template === 'inner-story' && (
+                               <div className="animate-in slide-in-from-bottom-2 fade-in">
+                                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">故事內文</label>
+                                  <textarea 
+                                    rows={6}
+                                    value={texts.description}
+                                    onChange={(e) => setTexts({...texts, description: e.target.value})}
+                                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-xs leading-relaxed"
+                                  />
+                                </div>
+                            )}
+
+                            {template === 'cover-sidebar' && (
+                               <div className="animate-in slide-in-from-bottom-2 fade-in">
+                                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">右下角標籤</label>
+                                  <input 
+                                    type="text" 
+                                    value={texts.tag}
+                                    onChange={(e) => setTexts({...texts, tag: e.target.value})}
+                                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm"
+                                  />
+                                </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* STYLE TAB */}
+                      {activeTab === 'style' && (
+                        <div className="space-y-6 animate-in fade-in duration-300">
+                          
+                          {/* Font Selection */}
+                          <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
+                            <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-1">
+                              <Icons.Type size={14} /> 字體風格
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                               {fontOptions.map((font) => (
+                                 <button
+                                   key={font.id}
+                                   onClick={() => setStyles({...styles, fontFamily: font.family})}
+                                   className={`px-3 py-2 rounded-lg text-xs border transition-all truncate text-left
+                                     ${styles.fontFamily === font.family 
+                                       ? 'bg-stone-900 text-white border-stone-900' 
+                                       : 'bg-white text-stone-600 border-stone-200 hover:border-stone-400'}`}
+                                   style={{ fontFamily: font.family }}
+                                 >
+                                   {font.name}
+                                 </button>
+                               ))}
+                            </div>
+                          </div>
+
+                          {/* Size Sliders */}
+                          <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
+                            <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-4">文字大小</label>
+                            <div className="space-y-5">
+                               <div>
+                                  <div className="flex justify-between text-xs text-stone-500 mb-1">
+                                     <span>主標題</span>
+                                     <span>{styles.mainSize}px</span>
+                                  </div>
+                                  <input 
+                                    type="range" min="20" max="120" step="2"
+                                    value={styles.mainSize}
+                                    onChange={(e) => setStyles({...styles, mainSize: parseInt(e.target.value)})}
+                                    className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900"
+                                  />
+                               </div>
+                               <div>
+                                  <div className="flex justify-between text-xs text-stone-500 mb-1">
+                                     <span>副標題</span>
+                                     <span>{styles.subSize}px</span>
+                                  </div>
+                                  <input 
+                                    type="range" min="10" max="40" step="1"
+                                    value={styles.subSize}
+                                    onChange={(e) => setStyles({...styles, subSize: parseInt(e.target.value)})}
+                                    className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900"
+                                  />
+                               </div>
+                            </div>
+                          </div>
+
+                          {/* Vertical Position */}
+                          <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
+                             <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                <Icons.MoveVertical size={14}/> 垂直位置調整
+                              </label>
+                              <div className="flex items-center gap-3">
+                                 <span className="text-[10px] text-stone-400">上</span>
+                                 <input 
+                                  type="range" min="-200" max="200" step="10"
+                                  value={styles.verticalPos}
+                                  onChange={(e) => setStyles({...styles, verticalPos: parseInt(e.target.value)})}
+                                  className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900"
+                                />
+                                <span className="text-[10px] text-stone-400">下</span>
+                              </div>
+                          </div>
+
+                          {/* Colors & Shadow */}
+                          <div className="space-y-4">
+                             <div className="flex items-center justify-between p-3 border border-stone-100 rounded-lg bg-white">
+                                <span className="text-sm font-medium text-stone-700">文字顏色</span>
+                                <div className="flex gap-2">
+                                   <button 
+                                     onClick={() => setStyles({...styles, textColor: 'white'})} 
+                                     className={`w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-transform active:scale-95 ${styles.textColor === 'white' ? 'ring-2 ring-stone-900 ring-offset-1 bg-white' : 'bg-white border-stone-200 hover:border-stone-400'}`}
+                                   >
+                                     <span className="w-4 h-4 bg-stone-100 rounded-full border border-stone-200"></span>
+                                   </button>
+                                   <button 
+                                     onClick={() => setStyles({...styles, textColor: 'black'})} 
+                                     className={`w-8 h-8 rounded-full border shadow-sm flex items-center justify-center transition-transform active:scale-95 ${styles.textColor === 'black' ? 'ring-2 ring-stone-900 ring-offset-1 bg-stone-900' : 'bg-stone-900 border-stone-900 hover:opacity-90'}`}
+                                   >
+                                      <span className="w-4 h-4 bg-stone-700 rounded-full"></span>
+                                   </button>
+                                </div>
+                             </div>
+
+                             <div className="flex items-center justify-between p-3 border border-stone-100 rounded-lg bg-white cursor-pointer hover:bg-stone-50 transition-colors"
+                                  onClick={() => setStyles({...styles, enableShadow: !styles.enableShadow})}>
+                                <div className="flex items-center gap-2">
+                                   <div className="p-1.5 bg-amber-100 text-amber-600 rounded-md"><Icons.Sun size={14}/></div>
+                                   <span className="text-sm font-medium text-stone-700">文字強力陰影</span>
+                                </div>
+                                <div className={`w-10 h-5 rounded-full relative transition-colors duration-200 ${styles.enableShadow ? 'bg-stone-900' : 'bg-stone-200'}`}>
+                                   <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-200 ${styles.enableShadow ? 'left-6' : 'left-1'}`}></div>
+                                </div>
+                             </div>
+                          </div>
+
+                        </div>
+                      )}
+
+                   </div>
+                </div>
+
+              </main>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
