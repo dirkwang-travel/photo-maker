@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Travel Gram Maker v2.1 + LUT Support</title>
+    <title>Travel Gram Maker v2.0</title>
     
     <!-- 1. 引入 React 和 ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -32,7 +32,7 @@
     <div id="root" class="h-full"></div>
 
     <script type="text/babel">
-        const { useState, useRef, useEffect, useMemo } = React;
+        const { useState, useRef, useEffect } = React;
 
         // --- Icons ---
         const Icons = {
@@ -44,95 +44,10 @@
             Upload: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
             MoveVertical: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 18 12 22 16 18"/><polyline points="8 6 12 2 16 6"/><line x1="12" x2="12" y1="2" y2="22"/></svg>,
             Sun: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>,
-            Type: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>,
-            Wand2: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.648 2.352a1.5 1.5 0 0 1 0 2.122l-1.06 1.06a1.5 1.5 0 0 1-2.122 0l-1.06-1.06a1.5 1.5 0 0 1 0-2.122l1.06-1.06a1.5 1.5 0 0 1 2.122 0z"/><path d="m15.5 8.5 3 3"/><path d="M13 11 9 15"/><path d="M19 19a7 7 0 0 1-14 0c0-3.866 3.134-7 7-7"/></svg>
+            Type: ({size=24}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></svg>
         };
 
-        // --- WebGL LUT Engine ---
-        const LUTEngine = {
-            createContext: (canvas) => {
-                const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
-                if (!gl) return null;
-                return gl;
-            },
-            createShader: (gl, type, source) => {
-                const shader = gl.createShader(type);
-                gl.shaderSource(shader, source);
-                gl.compileShader(shader);
-                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                    console.error(gl.getShaderInfoLog(shader));
-                    gl.deleteShader(shader);
-                    return null;
-                }
-                return shader;
-            },
-            createProgram: (gl, vsSource, fsSource) => {
-                const vs = LUTEngine.createShader(gl, gl.VERTEX_SHADER, vsSource);
-                const fs = LUTEngine.createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-                const program = gl.createProgram();
-                gl.attachShader(program, vs);
-                gl.attachShader(program, fs);
-                gl.linkProgram(program);
-                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-                    console.error(gl.getProgramInfoLog(program));
-                    return null;
-                }
-                return program;
-            },
-            parseCube: (text) => {
-                const lines = text.split('\n');
-                let size = 0;
-                let data = [];
-                for (let line of lines) {
-                    line = line.trim();
-                    if (line.startsWith('#') || line === '') continue;
-                    if (line.startsWith('LUT_3D_SIZE')) {
-                        size = parseInt(line.split(' ')[1]);
-                        continue;
-                    }
-                    if (line.startsWith('TITLE')) continue;
-                    if (line.startsWith('DOMAIN')) continue;
-                    const parts = line.split(/\s+/).map(parseFloat);
-                    if (parts.length === 3) {
-                        data.push(parts[0], parts[1], parts[2]);
-                    }
-                }
-                if (data.length !== size * size * size * 3) {
-                    console.warn("LUT data size mismatch, trying best effort", data.length, size);
-                }
-                return { size, data: new Float32Array(data) };
-            }
-        };
-
-        const VS_SOURCE = `#version 300 es
-        in vec2 a_position;
-        in vec2 a_texCoord;
-        out vec2 v_texCoord;
-        void main() {
-            gl_Position = vec4(a_position, 0, 1);
-            v_texCoord = a_texCoord;
-        }`;
-
-        const FS_SOURCE = `#version 300 es
-        precision highp float;
-        precision highp sampler3D;
-        in vec2 v_texCoord;
-        uniform sampler2D u_image;
-        uniform sampler3D u_lut;
-        uniform float u_intensity;
-        out vec4 outColor;
-        void main() {
-            vec4 color = texture(u_image, v_texCoord);
-            float lutSize = float(textureSize(u_lut, 0).x);
-            // 3D LUT Lookup logic
-            vec3 scale = (lutSize - 1.0) / lutSize;
-            vec3 offset = 1.0 / (2.0 * lutSize);
-            vec3 coord = color.rgb * scale + offset;
-            vec3 lutColor = texture(u_lut, coord).rgb;
-            outColor = vec4(mix(color.rgb, lutColor, u_intensity), color.a);
-        }`;
-
-        // --- Hook for Container Size ---
+        // --- Hook ---
         const useContainerSize = () => {
           const [size, setSize] = useState({ width: 0, height: 0 });
           const ref = useRef(null);
@@ -160,12 +75,7 @@
         ];
 
         const App = () => {
-          const [originalImage, setOriginalImage] = useState(null); // The raw uploaded image
-          const [displayImage, setDisplayImage] = useState(null); // The image after LUT processing
-          const [lutData, setLutData] = useState(null);
-          const [lutName, setLutName] = useState("");
-          const [lutIntensity, setLutIntensity] = useState(1.0);
-          
+          const [image, setImage] = useState(null);
           const [template, setTemplate] = useState('cover-frame');
           const [activeTab, setActiveTab] = useState('content'); 
           
@@ -189,93 +99,7 @@
           
           const previewRef = useRef(null);
           const fileInputRef = useRef(null);
-          const lutInputRef = useRef(null);
           const [containerRef, containerSize] = useContainerSize();
-
-          // --- Filter Logic ---
-          useEffect(() => {
-              if (!originalImage) return;
-              if (!lutData) {
-                  setDisplayImage(originalImage);
-                  return;
-              }
-              
-              const applyFilter = async () => {
-                  const img = new Image();
-                  img.src = originalImage;
-                  await img.decode();
-
-                  const canvas = document.createElement('canvas');
-                  canvas.width = img.width;
-                  canvas.height = img.height;
-                  const gl = LUTEngine.createContext(canvas);
-                  if(!gl) {
-                      setDisplayImage(originalImage);
-                      return;
-                  }
-
-                  const program = LUTEngine.createProgram(gl, VS_SOURCE, FS_SOURCE);
-                  gl.useProgram(program);
-
-                  // Setup Image Texture
-                  const imageTexture = gl.createTexture();
-                  gl.activeTexture(gl.TEXTURE0);
-                  gl.bindTexture(gl.TEXTURE_2D, imageTexture);
-                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-
-                  // Setup LUT Texture (3D)
-                  const lutTexture = gl.createTexture();
-                  gl.activeTexture(gl.TEXTURE1);
-                  gl.bindTexture(gl.TEXTURE_3D, lutTexture);
-                  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-                  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-                  gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                  gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGB16F, lutData.size, lutData.size, lutData.size, 0, gl.RGB, gl.FLOAT, lutData.data);
-
-                  // Uniforms
-                  gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
-                  gl.uniform1i(gl.getUniformLocation(program, "u_lut"), 1);
-                  gl.uniform1f(gl.getUniformLocation(program, "u_intensity"), lutIntensity);
-
-                  // Quad
-                  const positionBuffer = gl.createBuffer();
-                  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-                  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                      -1, -1, 0, 0,
-                       1, -1, 1, 0,
-                      -1,  1, 0, 1,
-                       1,  1, 1, 1,
-                  ]), gl.STATIC_DRAW);
-
-                  const a_position = gl.getAttribLocation(program, "a_position");
-                  const a_texCoord = gl.getAttribLocation(program, "a_texCoord");
-                  gl.enableVertexAttribArray(a_position);
-                  gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 16, 0);
-                  gl.enableVertexAttribArray(a_texCoord);
-                  gl.vertexAttribPointer(a_texCoord, 2, gl.FLOAT, false, 16, 8);
-
-                  gl.viewport(0, 0, canvas.width, canvas.height);
-                  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-                  setDisplayImage(canvas.toDataURL('image/jpeg', 0.95));
-                  
-                  // Cleanup to save memory
-                  gl.deleteTexture(imageTexture);
-                  gl.deleteTexture(lutTexture);
-                  gl.deleteProgram(program);
-                  gl.deleteBuffer(positionBuffer);
-              };
-
-              applyFilter();
-
-          }, [originalImage, lutData, lutIntensity]);
-
 
           // Defaults per template
           useEffect(() => {
@@ -292,29 +116,8 @@
             const file = e.target.files[0];
             if (file) {
               const reader = new FileReader();
-              reader.onload = (e) => {
-                  setOriginalImage(e.target.result);
-                  // We also reset display image temporarily
-                  setDisplayImage(e.target.result);
-              };
+              reader.onload = (e) => setImage(e.target.result);
               reader.readAsDataURL(file);
-            }
-          };
-
-          const handleLutUpload = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const parsed = LUTEngine.parseCube(e.target.result);
-                    if (parsed.size > 0) {
-                        setLutData(parsed);
-                        setLutName(file.name.replace('.cube', ''));
-                    } else {
-                        alert("無法讀取此 LUT 檔案");
-                    }
-                };
-                reader.readAsText(file);
             }
           };
 
@@ -343,14 +146,16 @@
           const getFontStyle = () => ({ fontFamily: styles.fontFamily });
 
           // --- 1. 電影相框 (Cinematic Frame) ---
+          // 改良點：四周加上細白框，更有「作品集」的感覺
           const renderCoverFrame = () => (
             <div className="relative w-full h-full bg-stone-900 overflow-hidden flex flex-col justify-center items-center" style={getFontStyle()}>
-              {displayImage ? (
-                <img src={displayImage} alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-90" />
+              {image ? (
+                <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover opacity-90" />
               ) : (
                 <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">上傳照片</div>
               )}
               
+              {/* The Frame */}
               <div className="absolute inset-4 border border-white/60 pointer-events-none z-10"></div>
               <div className="absolute inset-4 border border-white/30 pointer-events-none z-10 translate-x-1 translate-y-1"></div>
 
@@ -372,16 +177,19 @@
           );
 
           // --- 2. 底部藝廊 (Bottom Gallery) ---
+          // 改良點：側邊欄移到底部，變身拍立得風格，留白更有藝術感
           const renderCoverGallery = () => (
             <div className="relative w-full h-full bg-white flex flex-col overflow-hidden" style={getFontStyle()}>
+               {/* Image Area (Top 85%) */}
                <div className="flex-[0.85] relative w-full overflow-hidden">
-                {displayImage ? (
-                  <img src={displayImage} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+                {image ? (
+                  <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
                   <div className="absolute inset-0 bg-stone-200 flex items-center justify-center text-stone-500">上傳照片</div>
                 )}
                </div>
 
+               {/* Bottom White Space (15%) */}
                <div className="flex-[0.15] bg-white flex items-center justify-between px-6 z-10 relative">
                   <div style={{ transform: `translateY(${styles.verticalPos}px)` }}>
                      <h1 className="font-bold tracking-wider text-stone-900 uppercase"
@@ -402,16 +210,19 @@
           );
 
           // --- 3. 視覺時間軸 (Visual Timeline) ---
+          // 改良點：加入左側線條，讓行程表更有資訊設計感
           const renderInnerTimeline = () => (
             <div className="relative w-full h-full bg-gray-100 overflow-hidden" style={getFontStyle()}>
-              {displayImage ? (
-                <img src={displayImage} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+              {image ? (
+                <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
               ) : (
                 <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">上傳照片</div>
               )}
+              {/* Subtle Gradient for readability */}
               <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent pointer-events-none"></div>
 
               <div className="absolute inset-0 flex flex-col justify-between p-8 z-10 pointer-events-none">
+                {/* Title Top Left */}
                 <div style={{ transform: `translateY(${styles.verticalPos}px)` }}>
                     <div className="inline-block border-b-2 border-white/50 pb-2 mb-2">
                         <h1 className="font-bold text-white tracking-wide uppercase leading-none"
@@ -425,11 +236,13 @@
                     </p>
                 </div>
 
+                {/* Timeline Bottom Left */}
                 <div className="relative pl-5 border-l border-white/40 py-2">
                   <div className="text-white whitespace-pre-line leading-loose font-mono tracking-wide"
                     style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}>
                     {texts.timeInfo}
                   </div>
+                  {/* Decorative dots */}
                   <div className="absolute left-[-3px] top-0 w-1.5 h-1.5 bg-white rounded-full"></div>
                   <div className="absolute left-[-3px] bottom-0 w-1.5 h-1.5 bg-white rounded-full"></div>
                 </div>
@@ -438,14 +251,17 @@
           );
 
           // --- 4. 毛玻璃浮卡 (Frosted Card) ---
+          // 改良點：不裁切圖片，而是用半透明卡片浮在圖上，背景若隱若現
           const renderInnerCard = () => (
             <div className="relative w-full h-full bg-stone-800 flex flex-col items-center justify-center overflow-hidden" style={getFontStyle()}>
-               {displayImage ? (
-                  <img src={displayImage} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+               {/* Full Background Image */}
+               {image ? (
+                  <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
                ) : (
                   <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">上傳照片</div>
                )}
                
+               {/* Floating Glass Card */}
                <div className="relative z-10 w-[85%] bg-white/85 backdrop-blur-sm p-8 shadow-xl border border-white/50"
                     style={{ transform: `translateY(${styles.verticalPos}px)` }}>
                   
@@ -462,6 +278,7 @@
                     </p>
                   </div>
 
+                  {/* Corner accents */}
                   <div className="absolute top-2 left-2 w-3 h-3 border-t border-l border-stone-400"></div>
                   <div className="absolute bottom-2 right-2 w-3 h-3 border-b border-r border-stone-400"></div>
                </div>
@@ -527,10 +344,6 @@
                         <Icons.Edit3 size={16} /> 內容
                         {activeTab === 'content' && <div className="absolute top-0 left-0 w-full h-0.5 bg-stone-900"></div>}
                       </button>
-                      <button onClick={() => setActiveTab('filter')} className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'filter' ? 'text-stone-900 bg-white' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`}>
-                        <Icons.Wand2 size={16} /> 濾鏡
-                        {activeTab === 'filter' && <div className="absolute top-0 left-0 w-full h-0.5 bg-stone-900"></div>}
-                      </button>
                       <button onClick={() => setActiveTab('style')} className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'style' ? 'text-stone-900 bg-white' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`}>
                         <Icons.Palette size={16} /> 外觀
                         {activeTab === 'style' && <div className="absolute top-0 left-0 w-full h-0.5 bg-stone-900"></div>}
@@ -557,7 +370,7 @@
                             <button onClick={() => fileInputRef.current?.click()} className="w-full border-2 border-dashed border-stone-300 rounded-xl h-20 flex flex-col items-center justify-center gap-1 text-stone-500 hover:border-stone-900 hover:text-stone-900 hover:bg-stone-50 transition-all group">
                               <div className="flex items-center gap-2">
                                  <div className="p-1.5 bg-stone-100 rounded-full group-hover:bg-stone-200 transition-colors"><Icons.Upload size={14} /></div>
-                                 <span className="text-xs font-medium">{originalImage ? '更換照片' : '點擊上傳'}</span>
+                                 <span className="text-xs font-medium">{image ? '更換照片' : '點擊上傳'}</span>
                               </div>
                             </button>
                             <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
@@ -595,40 +408,6 @@
                             )}
                           </div>
                         </div>
-                      )}
-                      
-                      {activeTab === 'filter' && (
-                          <div className="space-y-6 animate-in fade-in duration-300">
-                              <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
-                                <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">上傳 3D LUT (.cube)</label>
-                                <p className="text-[10px] text-stone-400 mb-3">支援 .cube 格式的 LUT 檔案，例如 Fujifilm Eterna 等。</p>
-                                <button onClick={() => lutInputRef.current?.click()} className="w-full border-2 border-dashed border-stone-300 rounded-xl h-16 flex flex-col items-center justify-center gap-1 text-stone-500 hover:border-stone-900 hover:text-stone-900 hover:bg-stone-50 transition-all group">
-                                  <div className="flex items-center gap-2">
-                                     <div className="p-1.5 bg-stone-100 rounded-full group-hover:bg-stone-200 transition-colors"><Icons.Upload size={14} /></div>
-                                     <span className="text-xs font-medium">{lutName ? lutName : '上傳 .cube 檔案'}</span>
-                                  </div>
-                                </button>
-                                <input type="file" ref={lutInputRef} onChange={handleLutUpload} accept=".cube" className="hidden" />
-                              </div>
-
-                              {lutData && (
-                                  <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
-                                      <div className="flex justify-between items-center mb-4">
-                                          <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider">濾鏡強度</label>
-                                          <span className="text-xs font-mono">{Math.round(lutIntensity * 100)}%</span>
-                                      </div>
-                                      <input 
-                                        type="range" min="0" max="1" step="0.05"
-                                        value={lutIntensity}
-                                        onChange={(e) => setLutIntensity(parseFloat(e.target.value))}
-                                        className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900"
-                                      />
-                                      <div className="mt-4 flex justify-end">
-                                          <button onClick={() => { setLutData(null); setLutName(""); setLutIntensity(1); }} className="text-xs text-red-500 hover:text-red-700 underline">移除濾鏡</button>
-                                      </div>
-                                  </div>
-                              )}
-                          </div>
                       )}
 
                       {activeTab === 'style' && (
