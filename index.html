@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Travel Gram Maker v2.0</title>
+    <title>Travel Gram Maker v2.12</title>
     
     <!-- 1. 引入 React 和 ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
 
     <!-- 5. 引入 Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&family=Oswald:wght@400;600&family=Playfair+Display:wght@400;600&family=Shippori+Mincho:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600&family=Oswald:wght@400;600&family=Playfair+Display:wght@400;600&family=Shippori+Mincho:wght@400;700&family=Space+Mono:wght@400;700&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -72,6 +72,7 @@
           { id: 'Shippori Mincho', name: '日系明朝', family: "'Shippori Mincho', serif" },
           { id: 'Oswald', name: '強烈粗體', family: "'Oswald', sans-serif" },
           { id: 'Space Mono', name: '打字機風', family: "'Space Mono', monospace" },
+          { id: 'Caveat', name: '手寫風格', family: "'Caveat', cursive" },
         ];
 
         const App = () => {
@@ -93,6 +94,7 @@
             mainSize: 52,
             subSize: 14,
             verticalPos: 0,
+            verticalPos2: 0, // NEW: Second vertical slider for subtitle
             enableShadow: false,
             fontFamily: fontOptions[0].family 
           });
@@ -103,12 +105,19 @@
 
           // Defaults per template
           useEffect(() => {
-            if (template === 'cover-gallery') {
-               setStyles(prev => ({ ...prev, textColor: 'black', mainSize: 32, subSize: 12 }));
-            } else if (template === 'inner-card') {
-               setStyles(prev => ({ ...prev, textColor: 'black', mainSize: 28, subSize: 14 }));
+            if (template === 'cover-poster' || template === 'cover-magazine') {
+               setStyles(prev => ({ ...prev, textColor: 'white', mainSize: 56, subSize: 14, fontFamily: "'Playfair Display', serif" }));
+            } else if (template === 'inner-minimal') {
+               setStyles(prev => ({ ...prev, textColor: 'black', mainSize: 18, subSize: 10, fontFamily: "'Montserrat', sans-serif" }));
+            } else if (template === 'inner-grid') {
+               setStyles(prev => ({ ...prev, textColor: 'black', mainSize: 24, subSize: 12, fontFamily: "'Montserrat', sans-serif" }));
+            } else if (template === 'inner-polaroid') {
+               setStyles(prev => ({ ...prev, textColor: 'black', mainSize: 32, subSize: 14, fontFamily: "'Caveat', cursive" }));
+            } else if (template === 'inner-story') {
+                // Story uses white text on full image, adjusted default positions & same size for both
+                setStyles(prev => ({ ...prev, textColor: 'white', mainSize: 16, subSize: 16, fontFamily: "'Montserrat', sans-serif", verticalPos: -20, verticalPos2: 20 }));
             } else {
-               setStyles(prev => ({ ...prev, textColor: 'white', mainSize: 52, subSize: 14 }));
+               setStyles(prev => ({ ...prev, textColor: 'white', mainSize: 52, subSize: 14, fontFamily: "'Montserrat', sans-serif" }));
             }
           }, [template]);
 
@@ -145,8 +154,7 @@
           const getTextShadowStyle = () => styles.enableShadow ? { textShadow: '2px 2px 10px rgba(0,0,0,0.8)' } : {};
           const getFontStyle = () => ({ fontFamily: styles.fontFamily });
 
-          // --- 1. 電影相框 (Cinematic Frame) ---
-          // 改良點：四周加上細白框，更有「作品集」的感覺
+          // --- 1. 相框 (Cinematic Frame) ---
           const renderCoverFrame = () => (
             <div className="relative w-full h-full bg-stone-900 overflow-hidden flex flex-col justify-center items-center" style={getFontStyle()}>
               {image ? (
@@ -154,63 +162,50 @@
               ) : (
                 <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">上傳照片</div>
               )}
-              
-              {/* The Frame */}
               <div className="absolute inset-4 border border-white/60 pointer-events-none z-10"></div>
               <div className="absolute inset-4 border border-white/30 pointer-events-none z-10 translate-x-1 translate-y-1"></div>
-
               <div 
                 className={`relative z-20 text-center px-8 w-full ${styles.textColor === 'white' ? 'text-white' : 'text-stone-900'}`}
                 style={{ transform: `translateY(${styles.verticalPos}px)` }}
               >
-                <p className="mb-3 tracking-[0.3em] font-medium opacity-90 uppercase text-xs"
-                  style={{ ...getTextShadowStyle() }}>
+                <p className="mb-3 tracking-[0.3em] font-medium opacity-90 uppercase text-xs" style={getTextShadowStyle()}>
                   {texts.subTitle}
                 </p>
-                <h1 className="font-bold tracking-widest uppercase leading-tight"
-                  style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}>
+                <h1 className="font-bold tracking-widest uppercase leading-tight" style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}>
                   {texts.mainTitle}
                 </h1>
-                <div className="w-8 h-[1px] bg-current mx-auto mt-4 opacity-60"></div>
               </div>
             </div>
           );
 
-          // --- 2. 底部藝廊 (Bottom Gallery) ---
-          // 改良點：側邊欄移到底部，變身拍立得風格，留白更有藝術感
-          const renderCoverGallery = () => (
-            <div className="relative w-full h-full bg-white flex flex-col overflow-hidden" style={getFontStyle()}>
-               {/* Image Area (Top 85%) */}
-               <div className="flex-[0.85] relative w-full overflow-hidden">
-                {image ? (
+          // --- 2. 海報 (Poster) ---
+          const renderCoverPoster = () => (
+            <div className="relative w-full h-full bg-stone-900 overflow-hidden" style={getFontStyle()}>
+               {image ? (
                   <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
-                ) : (
+               ) : (
                   <div className="absolute inset-0 bg-stone-200 flex items-center justify-center text-stone-500">上傳照片</div>
-                )}
+               )}
+               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none"></div>
+               <div className="absolute top-8 right-8 z-10">
+                  <span className={`text-[10px] font-mono border px-2 py-1 rounded uppercase tracking-wider ${styles.textColor === 'white' ? 'border-white/50 text-white' : 'border-black/30 text-black'}`}>
+                     {texts.tag}
+                  </span>
                </div>
-
-               {/* Bottom White Space (15%) */}
-               <div className="flex-[0.15] bg-white flex items-center justify-between px-6 z-10 relative">
+               <div className="absolute bottom-10 left-8 right-8 z-10 text-left">
                   <div style={{ transform: `translateY(${styles.verticalPos}px)` }}>
-                     <h1 className="font-bold tracking-wider text-stone-900 uppercase"
-                        style={{ fontSize: `${styles.mainSize * 0.8}px` }}>
+                     <h1 className={`font-bold tracking-tight uppercase leading-[0.9] ${styles.textColor === 'white' ? 'text-white' : 'text-stone-900'}`} style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}>
                        {texts.mainTitle}
                      </h1>
-                     <p className="text-stone-500 text-[10px] tracking-widest uppercase mt-1">
+                     <p className={`font-medium tracking-[0.2em] uppercase mt-3 ml-1 ${styles.textColor === 'white' ? 'text-white/90' : 'text-stone-800'}`} style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}>
                        {texts.subTitle}
-                     </p>
-                  </div>
-                  <div className="text-right">
-                     <p className="text-stone-400 text-[10px] font-mono border border-stone-300 px-2 py-1 rounded-full">
-                       {texts.tag}
                      </p>
                   </div>
                </div>
             </div>
           );
 
-          // --- 3. 視覺時間軸 (Visual Timeline) ---
-          // 改良點：加入左側線條，讓行程表更有資訊設計感
+          // --- 3. 時間軸 (Visual Timeline) ---
           const renderInnerTimeline = () => (
             <div className="relative w-full h-full bg-gray-100 overflow-hidden" style={getFontStyle()}>
               {image ? (
@@ -218,31 +213,22 @@
               ) : (
                 <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">上傳照片</div>
               )}
-              {/* Subtle Gradient for readability */}
               <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent pointer-events-none"></div>
-
               <div className="absolute inset-0 flex flex-col justify-between p-8 z-10 pointer-events-none">
-                {/* Title Top Left */}
                 <div style={{ transform: `translateY(${styles.verticalPos}px)` }}>
                     <div className="inline-block border-b-2 border-white/50 pb-2 mb-2">
-                        <h1 className="font-bold text-white tracking-wide uppercase leading-none"
-                          style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}>
+                        <h1 className="font-bold text-white tracking-wide uppercase leading-none" style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}>
                           {texts.mainTitle}
                         </h1>
                     </div>
-                    <p className="text-white/90 font-medium tracking-wider"
-                      style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}>
+                    <p className="text-white/90 font-medium tracking-wider" style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}>
                       {texts.location}
                     </p>
                 </div>
-
-                {/* Timeline Bottom Left */}
                 <div className="relative pl-5 border-l border-white/40 py-2">
-                  <div className="text-white whitespace-pre-line leading-loose font-mono tracking-wide"
-                    style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}>
+                  <div className="text-white whitespace-pre-line leading-loose font-mono tracking-wide" style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}>
                     {texts.timeInfo}
                   </div>
-                  {/* Decorative dots */}
                   <div className="absolute left-[-3px] top-0 w-1.5 h-1.5 bg-white rounded-full"></div>
                   <div className="absolute left-[-3px] bottom-0 w-1.5 h-1.5 bg-white rounded-full"></div>
                 </div>
@@ -250,46 +236,146 @@
             </div>
           );
 
-          // --- 4. 毛玻璃浮卡 (Frosted Card) ---
-          // 改良點：不裁切圖片，而是用半透明卡片浮在圖上，背景若隱若現
-          const renderInnerCard = () => (
-            <div className="relative w-full h-full bg-stone-800 flex flex-col items-center justify-center overflow-hidden" style={getFontStyle()}>
-               {/* Full Background Image */}
-               {image ? (
+          // --- 4. 極簡留白 (Minimal) ---
+          const renderInnerMinimal = () => (
+            <div className="relative w-full h-full bg-white flex flex-col" style={getFontStyle()}>
+               <div className="flex-[0.85] w-full bg-stone-100 overflow-hidden relative">
+                {image ? (
+                  <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 bg-stone-100 flex items-center justify-center text-stone-400">上傳照片</div>
+                )}
+               </div>
+               <div className="flex-[0.15] w-full flex flex-col justify-center items-center text-center p-4" style={{transform: `translateY(${styles.verticalPos}px)`}}>
+                   <p className="text-stone-400 text-[10px] tracking-[0.2em] uppercase mb-1">{texts.tag}</p>
+                   <h2 className="text-stone-800 font-medium tracking-widest uppercase text-sm" style={{ fontSize: `${styles.mainSize}px` }}>
+                       {texts.subTitle}
+                   </h2>
+               </div>
+            </div>
+          );
+
+          // --- 5. 雜誌 (Magazine) ---
+          const renderCoverMagazine = () => (
+            <div className="relative w-full h-full bg-stone-100 overflow-hidden" style={getFontStyle()}>
+              {image ? (
                   <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
                ) : (
-                  <div className="absolute inset-0 bg-stone-300 flex items-center justify-center text-stone-500">上傳照片</div>
+                  <div className="absolute inset-0 bg-stone-200 flex items-center justify-center text-stone-500">上傳照片</div>
                )}
-               
-               {/* Floating Glass Card */}
-               <div className="relative z-10 w-[85%] bg-white/85 backdrop-blur-sm p-8 shadow-xl border border-white/50"
-                    style={{ transform: `translateY(${styles.verticalPos}px)` }}>
-                  
-                  <div className="flex flex-col items-center text-center">
-                    <span className="text-stone-400 text-xs mb-3 tracking-widest uppercase">— Story —</span>
-                    <h2 className="font-bold text-stone-900 mb-4 tracking-widest leading-tight"
-                      style={{ fontSize: `${styles.mainSize * 0.8}px` }}>
-                      {texts.subTitle}
-                    </h2>
-                    <div className="w-12 h-[2px] bg-stone-300 mb-5"></div>
-                    <p className="text-stone-700 leading-relaxed tracking-wide font-sans text-justify"
-                      style={{ fontSize: `${styles.subSize}px` }}>
-                      {texts.description}
-                    </p>
+               <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-black/50 to-transparent pointer-events-none"></div>
+               <div className="absolute top-0 w-full p-8 text-center z-10">
+                   <p className="text-white/80 tracking-[0.4em] uppercase text-[10px] mb-2">Life & Style</p>
+                   <h1 className="text-white font-bold leading-none tracking-tight uppercase drop-shadow-xl" style={{ fontSize: `${styles.mainSize * 1.5}px` }}>
+                     {texts.mainTitle}
+                   </h1>
+                   <div className="w-full h-[1px] bg-white/50 mt-4 max-w-[200px] mx-auto"></div>
+               </div>
+               <div className="absolute bottom-0 w-full p-6 flex justify-between items-end z-10 bg-gradient-to-t from-black/60 to-transparent">
+                  <div className="text-white">
+                      <p className="uppercase tracking-widest text-xs font-bold mb-1">Vol. 01</p>
+                      <p className="text-[10px] opacity-80">{texts.subTitle}</p>
                   </div>
+                  <div className="bg-white p-1 rounded-sm">
+                      <div className="flex h-6 w-20 justify-between">
+                          {[...Array(20)].map((_,i) => (
+                              <div key={i} className="bg-black h-full" style={{width: Math.random() > 0.5 ? '2px' : '1px'}}></div>
+                          ))}
+                      </div>
+                  </div>
+               </div>
+            </div>
+          );
 
-                  {/* Corner accents */}
-                  <div className="absolute top-2 left-2 w-3 h-3 border-t border-l border-stone-400"></div>
-                  <div className="absolute bottom-2 right-2 w-3 h-3 border-b border-r border-stone-400"></div>
+          // --- 6. 格柵雜誌 (Grid Magazine) ---
+          const renderInnerGrid = () => (
+            <div className="relative w-full h-full bg-white flex flex-row" style={getFontStyle()}>
+               <div className="w-1/2 h-full bg-stone-100 overflow-hidden relative">
+                    {image ? (
+                        <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-stone-400">上傳照片</div>
+                    )}
+               </div>
+               <div className="w-1/2 h-full flex flex-col justify-center p-6 bg-white" style={{transform: `translateY(${styles.verticalPos}px)`}}>
+                   <div className="border-l-2 border-stone-900 pl-4 mb-4">
+                       <p className="text-stone-900 font-bold uppercase tracking-widest leading-none mb-2" style={{ fontSize: `${styles.mainSize}px` }}>
+                           {texts.tag}
+                       </p>
+                       <p className="text-stone-400 text-[10px] uppercase tracking-wide">{texts.timeInfo.split('\n')[0]}</p>
+                   </div>
+                   <p className="text-stone-600 text-xs leading-relaxed text-justify font-sans">
+                       {texts.description}
+                   </p>
+               </div>
+            </div>
+          );
+
+          // --- 7. 拍立得 (Polaroid) ---
+          const renderInnerPolaroid = () => (
+            <div className="relative w-full h-full bg-stone-200 overflow-hidden flex items-center justify-center p-6" style={getFontStyle()}>
+               <div className="bg-white w-full h-auto p-4 pb-12 shadow-xl relative transition-transform duration-300">
+                   <div className="aspect-[4/5] w-full bg-stone-100 mb-6 overflow-hidden relative grayscale-[0.1]">
+                        {image ? (
+                            <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-stone-400">上傳照片</div>
+                        )}
+                        <div className="absolute inset-0 shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] pointer-events-none"></div>
+                   </div>
+                   <div className="text-center" style={{transform: `translateY(${styles.verticalPos}px)`}}>
+                       <h2 className="text-stone-800 text-2xl font-bold mb-2" style={{ fontSize: `${styles.mainSize}px` }}>
+                           {texts.subTitle}
+                       </h2>
+                       <p className="text-stone-500 text-sm">{texts.timeInfo.split('\n')[0]}</p>
+                   </div>
+               </div>
+            </div>
+          );
+
+          // --- 4. 故事 (Story) - Updated: Full Image, Left Align, Independent Floating Texts ---
+          const renderInnerStory = () => (
+            <div className="relative w-full h-full bg-white flex flex-col overflow-hidden" style={getFontStyle()}>
+               <div className="relative w-full h-full overflow-hidden bg-stone-900">
+                {image ? (
+                  <img src={image} alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 bg-stone-200 flex items-center justify-center text-stone-500">上傳照片</div>
+                )}
+                
+                {/* 1. 註解1 (主標題) - 獨立控制 - 靠左 */}
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-center items-start">
+                    <div style={{ transform: `translateY(${styles.verticalPos}px)` }} className="text-left px-6">
+                        <h2 className={`font-bold tracking-widest uppercase drop-shadow-md leading-relaxed ${styles.textColor === 'white' ? 'text-white' : 'text-stone-900'}`}
+                            style={{ fontSize: `${styles.mainSize}px`, ...getTextShadowStyle() }}>
+                            {texts.subTitle} 
+                        </h2>
+                    </div>
+                </div>
+
+                {/* 2. 註解2 (副標題) - 獨立控制 - 靠左 */}
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-center items-start">
+                    <div style={{ transform: `translateY(${styles.verticalPos2}px)` }} className="text-left px-6">
+                        <p className={`font-medium tracking-wide drop-shadow-md leading-relaxed whitespace-pre-line ${styles.textColor === 'white' ? 'text-white' : 'text-stone-900'}`}
+                            style={{ fontSize: `${styles.subSize}px`, ...getTextShadowStyle() }}>
+                            {texts.description.split('\n')[0]} 
+                        </p>
+                    </div>
+                </div>
+
                </div>
             </div>
           );
 
           const templates = [
             { id: 'cover-frame', name: '相框：電影感', render: renderCoverFrame },
-            { id: 'cover-gallery', name: '封面：藝廊', render: renderCoverGallery },
+            { id: 'cover-poster', name: '封面：海報', render: renderCoverPoster },
+            { id: 'cover-magazine', name: '封面：雜誌', render: renderCoverMagazine }, 
             { id: 'inner-timeline', name: '內頁：時間軸', render: renderInnerTimeline },
-            { id: 'inner-card', name: '內頁：浮卡', render: renderInnerCard },
+            { id: 'inner-minimal', name: '內頁：極簡', render: renderInnerMinimal }, 
+            { id: 'inner-grid', name: '內頁：格柵', render: renderInnerGrid }, 
+            { id: 'inner-story', name: '內頁：故事', render: renderInnerStory },
+            { id: 'inner-polaroid', name: '內頁：拍立得', render: renderInnerPolaroid }, 
           ];
 
           const BASE_WIDTH = 400;
@@ -310,7 +396,7 @@
                     <div className="bg-stone-900 text-white p-1 rounded">
                       <Icons.ImageIcon size={18} />
                     </div>
-                    <span className="font-bold text-base tracking-tight">Travel Gram v2</span>
+                    <span className="font-bold text-base tracking-tight">Travel Gram v2.12</span>
                   </div>
                   <button onClick={handleDownload} className="flex items-center gap-2 bg-stone-900 hover:bg-stone-700 active:scale-95 text-white px-4 py-1.5 rounded-full text-xs font-medium transition-all shadow-md">
                     <Icons.Download size={14} /> 下載
@@ -378,12 +464,16 @@
                           <hr className="border-stone-100" />
                           <div className="space-y-4">
                             <div>
-                              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">主標題</label>
-                              <input type="text" value={texts.mainTitle} onChange={(e) => setTexts({...texts, mainTitle: e.target.value})} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm" />
+                              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">
+                                  {template === 'inner-story' ? '註解 1' : '主標題'}
+                              </label>
+                              <input type="text" value={template === 'inner-story' ? texts.subTitle : texts.mainTitle} onChange={(e) => setTexts({...texts, [template === 'inner-story' ? 'subTitle' : 'mainTitle']: e.target.value})} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm" />
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">副標題</label>
-                              <input type="text" value={texts.subTitle} onChange={(e) => setTexts({...texts, subTitle: e.target.value})} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm" />
+                              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">
+                                  {template === 'inner-story' ? '註解 2' : '副標題'}
+                              </label>
+                              <input type="text" value={template === 'inner-story' ? texts.description : texts.subTitle} onChange={(e) => setTexts({...texts, [template === 'inner-story' ? 'description' : 'subTitle']: e.target.value})} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm" />
                             </div>
 
                             {template === 'inner-timeline' && (
@@ -393,14 +483,21 @@
                               </div>
                             )}
 
-                            {template === 'inner-card' && (
+                            {template === 'inner-minimal' && (
                                <div className="animate-in slide-in-from-bottom-2 fade-in">
                                   <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">故事內文</label>
                                   <textarea rows={6} value={texts.description} onChange={(e) => setTexts({...texts, description: e.target.value})} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-xs leading-relaxed" />
                                 </div>
                             )}
 
-                            {template === 'cover-gallery' && (
+                            {template === 'inner-grid' && (
+                               <div className="animate-in slide-in-from-bottom-2 fade-in">
+                                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">故事內文</label>
+                                  <textarea rows={6} value={texts.description} onChange={(e) => setTexts({...texts, description: e.target.value})} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-xs leading-relaxed" />
+                                </div>
+                            )}
+
+                            {(template === 'cover-poster' || template === 'cover-magazine' || template === 'inner-polaroid') && (
                                <div className="animate-in slide-in-from-bottom-2 fade-in">
                                   <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1.5">標籤 / 資訊</label>
                                   <input type="text" value={texts.tag} onChange={(e) => setTexts({...texts, tag: e.target.value})} className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 text-stone-800 text-sm" />
@@ -424,21 +521,36 @@
                             <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-4">文字大小</label>
                             <div className="space-y-5">
                                <div>
-                                  <div className="flex justify-between text-xs text-stone-500 mb-1"><span>主標題</span><span>{styles.mainSize}px</span></div>
+                                  <div className="flex justify-between text-xs text-stone-500 mb-1"><span>{template === 'inner-story' ? '註解 1' : '主標題'}</span><span>{styles.mainSize}px</span></div>
                                   <input type="range" min="20" max="120" step="2" value={styles.mainSize} onChange={(e) => setStyles({...styles, mainSize: parseInt(e.target.value)})} className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900" />
                                </div>
                                <div>
-                                  <div className="flex justify-between text-xs text-stone-500 mb-1"><span>副標題</span><span>{styles.subSize}px</span></div>
+                                  <div className="flex justify-between text-xs text-stone-500 mb-1"><span>{template === 'inner-story' ? '註解 2' : '副標題'}</span><span>{styles.subSize}px</span></div>
                                   <input type="range" min="10" max="40" step="1" value={styles.subSize} onChange={(e) => setStyles({...styles, subSize: parseInt(e.target.value)})} className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900" />
                                </div>
                             </div>
                           </div>
                           <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
                              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Icons.MoveVertical size={14}/> 垂直位置調整</label>
-                              <div className="flex items-center gap-3">
-                                 <span className="text-[10px] text-stone-400">上</span>
-                                 <input type="range" min="-200" max="200" step="10" value={styles.verticalPos} onChange={(e) => setStyles({...styles, verticalPos: parseInt(e.target.value)})} className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900" />
-                                <span className="text-[10px] text-stone-400">下</span>
+                              <div className="space-y-4">
+                                <div>
+                                    <div className="flex justify-between text-[10px] text-stone-400 mb-1"><span>{template === 'inner-story' ? '註解 1 位置' : '主標題位置'}</span></div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[10px] text-stone-400">上</span>
+                                        <input type="range" min="-200" max="200" step="10" value={styles.verticalPos} onChange={(e) => setStyles({...styles, verticalPos: parseInt(e.target.value)})} className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900" />
+                                        <span className="text-[10px] text-stone-400">下</span>
+                                    </div>
+                                </div>
+                                {template === 'inner-story' && (
+                                    <div>
+                                        <div className="flex justify-between text-[10px] text-stone-400 mb-1"><span>註解 2 位置</span></div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[10px] text-stone-400">上</span>
+                                            <input type="range" min="-200" max="200" step="10" value={styles.verticalPos2} onChange={(e) => setStyles({...styles, verticalPos2: parseInt(e.target.value)})} className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900" />
+                                            <span className="text-[10px] text-stone-400">下</span>
+                                        </div>
+                                    </div>
+                                )}
                               </div>
                           </div>
                           <div className="space-y-4">
